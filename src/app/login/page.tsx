@@ -2,6 +2,7 @@
 "use client";
 
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -13,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { LogIn, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { signIn } from 'next-auth/react';
+import { useSession, signIn } from 'next-auth/react';
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address."),
@@ -22,14 +23,23 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
-export default function LoginPage() {
+function LoginPageContent() {
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { status } = useSession();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Display NextAuth error messages if any
+  // Redirect if user is already authenticated
+  useEffect(() => {
+    if (status === 'authenticated') {
+      const callbackUrl = searchParams.get('callbackUrl') || '/';
+      router.push(callbackUrl);
+    }
+  }, [status, router, searchParams]);
+
+  // Display NextAuth error messages from URL if any
   useEffect(() => {
     const error = searchParams.get('error');
     if (error) {
@@ -39,13 +49,11 @@ export default function LoginPage() {
       } else if (error.includes("Please provide email and password")) {
         errorMessage = "Please enter both email and password.";
       }
-      // You can add more specific error handling here based on error codes from NextAuth
       toast({
         title: "Login Failed",
         description: errorMessage,
         variant: "destructive",
       });
-      // Remove error from URL to prevent re-showing toast on refresh
       router.replace('/login', { scroll: false });
     }
   }, [searchParams, toast, router]);
@@ -69,12 +77,9 @@ export default function LoginPage() {
         title: "Login Successful!",
         description: "Welcome back!",
       });
-      // Redirect to a desired page, e.g., admin dashboard or home
-      const callbackUrl = searchParams.get('callbackUrl') || '/admin/dashboard';
+      const callbackUrl = searchParams.get('callbackUrl') || '/'; // Redirect to home or callback
       router.push(callbackUrl);
     } else {
-      // Error handling is now primarily done via the useEffect hook watching searchParams.
-      // However, we can provide a fallback toast here if signIn itself returns an error message directly.
       toast({
         title: "Login Failed",
         description: result?.error || "Invalid email or password. Please check your credentials.",
@@ -82,6 +87,20 @@ export default function LoginPage() {
       });
     }
   };
+  
+  // Show a loader while session status is being determined
+  if (status === 'loading') {
+    return (
+        <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
+            <Loader2 className="h-12 w-12 animate-spin text-accent" />
+        </div>
+    );
+  }
+  
+  // Don't render the form if the user is authenticated; the redirect will happen
+  if (status === 'authenticated') {
+    return null;
+  }
 
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-200px)] py-12">
@@ -154,4 +173,13 @@ export default function LoginPage() {
       </Card>
     </div>
   );
+}
+
+// Wrap the component in Suspense for useSearchParams
+export default function LoginPageWrapper() {
+    return (
+        <Suspense fallback={<div>Loading login page...</div>}>
+            <LoginPageContent />
+        </Suspense>
+    );
 }

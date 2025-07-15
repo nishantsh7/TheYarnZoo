@@ -2,9 +2,11 @@
 'use server';
 
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
 import { connectToDatabase } from '@/lib/mongodb';
 import type { UserDocument, ShippingAddress, AdminCustomerInfo, UserRole } from '@/types';
 import { ObjectId } from 'mongodb';
+import { revalidatePath } from 'next/cache';
 
 const ShippingAddressActionSchema = z.object({
   name: z.string().min(2, "Full name is required."),
@@ -15,16 +17,34 @@ const ShippingAddressActionSchema = z.object({
   phone: z.string().min(7, "Valid phone number is required."),
 });
 
-export type UserProfileActionResponse = {
+const UpdateNameSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters."),
+});
+
+const UpdatePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required."),
+  newPassword: z.string().min(6, "New password must be at least 6 characters."),
+  confirmPassword: z.string(),
+}).refine(data => data.newPassword === data.confirmPassword, {
+  message: "New passwords do not match.",
+  path: ["confirmPassword"],
+});
+
+const UpdateUserRoleSchema = z.object({
+  userId: z.string().refine((val) => ObjectId.isValid(val), "Invalid user ID."),
+  newRole: z.enum(['admin', 'user']),
+});
+
+
+export type ProfileActionResponse = {
   success: boolean;
   message: string;
-  shippingAddress?: ShippingAddress | null;
 };
 
 export async function saveUserShippingAddressAction(
   userId: string,
   shippingAddressData: unknown
-): Promise<Omit<UserProfileActionResponse, 'shippingAddress'>> {
+): Promise<ProfileActionResponse> {
   if (!ObjectId.isValid(userId)) {
     return { success: false, message: "Invalid user ID format." };
   }
@@ -108,5 +128,102 @@ export async function getAdminUsers(): Promise<AdminCustomerInfo[]> {
   } catch (error) {
     console.error("Error fetching admin users:", error);
     return [];
+  }
+}
+
+export async function updateUserProfileName(userId: string, data: unknown): Promise<ProfileActionResponse> {
+    if (!ObjectId.isValid(userId)) {
+        return { success: false, message: "Invalid user ID." };
+    }
+
+    const validatedFields = UpdateNameSchema.safeParse(data);
+    if (!validatedFields.success) {
+        return { success: false, message: validatedFields.error.flatten().fieldErrors.name?.[0] || "Invalid name." };
+    }
+
+    const { name } = validatedFields.data;
+
+    try {
+        const { db } = await connectToDatabase();
+        const usersCollection = db.collection<UserDocument>('users');
+        const result = await usersCollection.updateOne({ _id: new ObjectId(userId) }, { $set: { name } });
+
+        if (result.matchedCount === 0) {
+            return { success: false, message: "User not found." };
+        }
+        if (result.modifiedCount === 0) {
+            return { success: true, message: "Name is already up to date." };
+        }
+
+        return { success: true, message: "Your name has been updated successfully." };
+    } catch (error) {
+        console.error("updateUserProfileName Error:", error);
+        return { success: false, message: "An unexpected error occurred." };
+    }
+}
+
+export async function updateUserPassword(userId: string, data: unknown): Promise<ProfileActionResponse> {
+    if (!ObjectId.isValid(userId)) {
+        return { success: false, message: "Invalid user ID." };
+    }
+
+    const validatedFields = UpdatePasswordSchema.safeParse(data);
+    if (!validatedFields.success) {
+        return { success: false, message: JSON.stringify(validatedFields.error.flatten().fieldErrors) };
+    }
+
+    const { currentPassword, newPassword } = validatedFields.data;
+
+    try {
+        const { db } = await connectToDatabase();
+        const usersCollection = db.collection<UserDocument>('users');
+        const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
+
+        if (!user) {
+            return { success: false, message: "User not found." };
+        }
+
+        const isPasswordCorrect = await bcrypt.compare(currentPassword, user.passwordHash);
+        if (!isPasswordCorrect) {
+            return { success: false, message: "Incorrect current password." };
+        }
+
+        const newPasswordHash = await bcrypt.hash(newPassword, 10);
+        await usersCollection.updateOne({ _id: new ObjectId(userId) }, { $set: { passwordHash: newPasswordHash } });
+
+        return { success: true, message: "Password updated successfully. Please log in again." };
+    } catch (error) {
+        console.error("updateUserPassword Error:", error);
+        return { success: false, message: "An unexpected error occurred." };
+    }
+}
+
+export async function updateUserRoleAction(data: unknown): Promise<ProfileActionResponse> {
+  const validatedFields = UpdateUserRoleSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: "Invalid input: " + JSON.stringify(validatedFields.error.flatten().fieldErrors) };
+  }
+
+  const { userId, newRole } = validatedFields.data;
+
+  try {
+    const { db } = await connectToDatabase();
+    const usersCollection = db.collection<UserDocument>('users');
+
+    const result = await usersCollection.updateOne(
+      { _id: new ObjectId(userId) },
+      { $set: { role: newRole } }
+    );
+
+    if (result.matchedCount === 0) {
+      return { success: false, message: "User not found." };
+    }
+
+    revalidatePath('/admin/customers');
+
+    return { success: true, message: "User role updated successfully." };
+  } catch (error) {
+    console.error("updateUserRoleAction Error:", error);
+    return { success: false, message: "An unexpected error occurred while updating the role." };
   }
 }

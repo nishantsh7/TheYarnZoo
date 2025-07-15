@@ -1,9 +1,9 @@
 
 'use client';
 import Link from 'next/link';
-import { ShoppingCart, UserCircle2, Menu, LogOut, LogIn as LogInIcon, ShieldCheck, LayoutGrid, Home as HomeIcon, LifeBuoy } from 'lucide-react';
+import { ShoppingCart, User, Menu, LogOut, LogIn as LogInIcon, ShieldCheck, LayoutGrid, Home as HomeIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger, SheetClose } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTrigger, SheetClose, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useState, useEffect } from 'react';
 import IntentSearchBar from '@/components/shared/IntentSearchBar';
 import { useCart } from '@/context/CartContext';
@@ -30,15 +30,13 @@ const Header = () => {
     { href: '/products', label: 'Products', icon: null, showPublic: true, showAuth: false, showAdmin: false, showCustomer: false },
     { href: '/about-us', label: 'About Us', icon: null, showPublic: true, showAuth: false, showAdmin: false, showCustomer: false },
     { href: '/#contact', label: 'Contact', icon: null, showPublic: true, showAuth: false, showAdmin: false, showCustomer: false },
-    // Customer specific (will be added if isCustomer)
-    // Admin specific (will be added if isAdmin)
   ];
 
   const getFilteredNavLinks = (isMobile: boolean = false) => {
     let links = [...navItemsBase];
     if (status === 'authenticated') {
         links = links.filter(item => {
-            if (isMobile && item.href === '/' && item.icon) return true; // Keep Home with icon for mobile logged in
+            if (isMobile && item.href === '/' && item.icon) return true;
             return item.showAuth || (isAdmin && item.showAdmin) || (isCustomer && item.showCustomer);
         });
     } else {
@@ -83,8 +81,11 @@ const Header = () => {
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-[280px] bg-background p-6">
-              <div className="flex flex-col gap-y-2">
-                <h3 className="text-xl font-headline font-bold text-primary mb-4">Categories</h3>
+              <SheetHeader>
+                <SheetTitle className="text-xl font-headline font-bold text-primary">Categories</SheetTitle>
+                <SheetDescription className="sr-only">A list of product categories to browse.</SheetDescription>
+              </SheetHeader>
+              <div className="flex flex-col gap-y-2 mt-4">
                 {drawerCategories.map(category => (
                   <SheetClose asChild key={category.slug}>
                     <Link
@@ -112,27 +113,15 @@ const Header = () => {
         </div>
 
         <div className="flex-grow hidden md:flex justify-center items-center px-4">
-          {status === 'authenticated' ? (
-            <div className="w-full max-w-2xl">
-              <IntentSearchBar />
-            </div>
-          ) : (
-            <nav className="flex gap-x-6 lg:gap-x-8 items-center">
-              {currentDesktopNavLinks.map(link => (
-                <Link key={link.href} href={link.href} className="text-foreground hover:text-accent transition-colors font-medium">
-                  {link.label}
-                </Link>
-              ))}
-            </nav>
-          )}
+          <div className="w-full max-w-2xl">
+            <IntentSearchBar />
+          </div>
         </div>
 
         <div className="flex items-center gap-1 sm:gap-3">
-          {status !== 'authenticated' && (
-            <div className="hidden md:block w-full max-w-xs"> 
-              <IntentSearchBar />
-            </div>
-          )}
+          <div className="hidden md:block w-full max-w-xs flex-grow"> 
+            {status !== 'authenticated' && <IntentSearchBar />}
+          </div>
 
           {status === 'loading' ? (
             <div className="h-8 w-8 animate-pulse bg-muted rounded-full hidden md:inline-flex"></div>
@@ -145,9 +134,9 @@ const Header = () => {
                 </Link>
               )}
               {isCustomer && (
-                  <Link href="/profile/support" className="hidden md:flex items-center text-foreground hover:text-accent transition-colors font-medium gap-1" title="Support Chat">
-                    <LifeBuoy className="h-5 w-5" />
-                    <span className="hidden lg:inline">Support</span>
+                  <Link href="/profile" className="hidden md:flex items-center text-foreground hover:text-accent transition-colors font-medium gap-1" title="My Profile">
+                    <User className="h-5 w-5" />
+                    <span className="hidden lg:inline">My Profile</span>
                 </Link>
               )}
               <Avatar className="h-8 w-8 hidden md:inline-flex cursor-default" title={session.user?.name || 'User'}>
@@ -162,23 +151,25 @@ const Header = () => {
           ) : (
             <Button variant="ghost" size="icon" className="hidden md:inline-flex" asChild title="Sign In / Account">
               <Link href="/login">
-                <UserCircle2 className="h-6 w-6 text-accent" />
+                <User className="h-6 w-6 text-accent" />
                 <span className="sr-only">Sign In / Account</span>
               </Link>
             </Button>
           )}
 
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/cart" className="relative">
-              <ShoppingCart className="h-6 w-6 text-accent" />
-              {cartItemCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                  {cartItemCount}
-                </span>
-              )}
-              <span className="sr-only">Shopping Cart</span>
-            </Link>
-          </Button>
+          {status === 'authenticated' && (
+            <Button variant="ghost" size="icon" asChild>
+              <Link href="/cart" className="relative">
+                <ShoppingCart className="h-6 w-6 text-accent" />
+                {cartItemCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {cartItemCount}
+                  </span>
+                )}
+                <span className="sr-only">Shopping Cart</span>
+              </Link>
+            </Button>
+          )}
 
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
             <SheetTrigger asChild className="md:hidden">
@@ -188,75 +179,80 @@ const Header = () => {
               </Button>
             </SheetTrigger>
             <SheetContent side="right" className="w-[280px] bg-background p-6">
-              <div className="flex flex-col gap-6">
-                <SheetClose asChild>
-                  <Link href="/" className="text-xl font-headline font-bold text-primary" onClick={() => setIsMobileMenuOpen(false)}>
-                    TheYarnZoo
-                  </Link>
-                </SheetClose>
-                <IntentSearchBar />
-                
-                {currentMobileNavLinks.map(link => {
-                  if (status === 'authenticated' && link.href === '/' && link.icon) {
-                    return (
-                      <SheetClose asChild key={link.href + "-mobile-auth-home"}>
-                        <Link
-                          href={link.href}
-                          className="flex items-center gap-2 text-foreground hover:text-accent transition-colors text-lg"
-                          onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                          <link.icon className="h-5 w-5" />
-                          <span>{link.label}</span>
-                        </Link>
-                      </SheetClose>
-                    );
-                  }
-                  return (
-                    <SheetClose asChild key={link.href + "-mobile"}>
-                      <Link
-                        href={link.href}
-                        className="flex items-center gap-2 text-foreground hover:text-accent transition-colors text-lg"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        {link.icon && <link.icon className="h-5 w-5" /> }
-                        <span>{link.label}</span>
+                <SheetHeader className="text-left mb-4">
+                  <SheetTitle>
+                    <SheetClose asChild>
+                      <Link href="/" className="text-xl font-headline font-bold text-primary" onClick={() => setIsMobileMenuOpen(false)}>
+                        TheYarnZoo
                       </Link>
                     </SheetClose>
-                  );
-                })}
+                  </SheetTitle>
+                  <SheetDescription className="sr-only">Main menu and site navigation.</SheetDescription>
+                </SheetHeader>
+                <div className="flex flex-col gap-6">
+                    <IntentSearchBar />
+                    
+                    {currentMobileNavLinks.map(link => {
+                      if (status === 'authenticated' && link.href === '/' && link.icon) {
+                        return (
+                          <SheetClose asChild key={link.href + "-mobile-auth-home"}>
+                            <Link
+                              href={link.href}
+                              className="flex items-center gap-2 text-foreground hover:text-accent transition-colors text-lg"
+                              onClick={() => setIsMobileMenuOpen(false)}
+                            >
+                              <link.icon className="h-5 w-5" />
+                              <span>{link.label}</span>
+                            </Link>
+                          </SheetClose>
+                        );
+                      }
+                      return (
+                        <SheetClose asChild key={link.href + "-mobile"}>
+                          <Link
+                            href={link.href}
+                            className="flex items-center gap-2 text-foreground hover:text-accent transition-colors text-lg"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                          >
+                            {link.icon && <link.icon className="h-5 w-5" /> }
+                            <span>{link.label}</span>
+                          </Link>
+                        </SheetClose>
+                      );
+                    })}
 
-                <Separator className="my-2" />
-                {status === 'authenticated' ? (
-                  <>
-                    {isAdmin && (
+                    <Separator className="my-2" />
+                    {status === 'authenticated' ? (
+                      <>
+                        {isAdmin && (
+                           <SheetClose asChild>
+                            <Link href="/admin/dashboard" className="flex items-center gap-2 text-foreground hover:text-accent transition-colors text-lg" onClick={() => setIsMobileMenuOpen(false)}>
+                              <ShieldCheck className="h-5 w-5" /> Admin Panel
+                            </Link>
+                          </SheetClose>
+                        )}
+                        {isCustomer && (
+                           <SheetClose asChild>
+                            <Link href="/profile" className="flex items-center gap-2 text-foreground hover:text-accent transition-colors text-lg" onClick={() => setIsMobileMenuOpen(false)}>
+                              <User className="h-5 w-5" /> My Profile
+                            </Link>
+                          </SheetClose>
+                        )}
+                         <SheetClose asChild>
+                            <button onClick={() => { handleSignOut(); setIsMobileMenuOpen(false); }} className="flex items-center gap-2 text-foreground hover:text-accent transition-colors text-lg text-left w-full">
+                              <LogOut className="h-5 w-5" /> Sign Out
+                            </button>
+                        </SheetClose>
+                        {session.user?.name && <p className="text-sm text-muted-foreground mt-2">Signed in as {session.user.name} ({session.user.role})</p>}
+                      </>
+                    ) : (
                        <SheetClose asChild>
-                        <Link href="/admin/dashboard" className="flex items-center gap-2 text-foreground hover:text-accent transition-colors text-lg" onClick={() => setIsMobileMenuOpen(false)}>
-                          <ShieldCheck className="h-5 w-5" /> Admin Panel
+                        <Link href="/login" className="flex items-center gap-2 text-foreground hover:text-accent transition-colors text-lg" onClick={() => setIsMobileMenuOpen(false)}>
+                          <LogInIcon className="h-5 w-5" /> Sign In / Register
                         </Link>
                       </SheetClose>
                     )}
-                    {isCustomer && (
-                       <SheetClose asChild>
-                        <Link href="/profile/support" className="flex items-center gap-2 text-foreground hover:text-accent transition-colors text-lg" onClick={() => setIsMobileMenuOpen(false)}>
-                          <LifeBuoy className="h-5 w-5" /> Support Chat
-                        </Link>
-                      </SheetClose>
-                    )}
-                     <SheetClose asChild>
-                        <button onClick={() => { handleSignOut(); setIsMobileMenuOpen(false); }} className="flex items-center gap-2 text-foreground hover:text-accent transition-colors text-lg text-left w-full">
-                          <LogOut className="h-5 w-5" /> Sign Out
-                        </button>
-                    </SheetClose>
-                    {session.user?.name && <p className="text-sm text-muted-foreground mt-2">Signed in as {session.user.name} ({session.user.role})</p>}
-                  </>
-                ) : (
-                   <SheetClose asChild>
-                    <Link href="/login" className="flex items-center gap-2 text-foreground hover:text-accent transition-colors text-lg" onClick={() => setIsMobileMenuOpen(false)}>
-                      <LogInIcon className="h-5 w-5" /> Sign In / Register
-                    </Link>
-                  </SheetClose>
-                )}
-              </div>
+                </div>
             </SheetContent>
           </Sheet>
         </div>

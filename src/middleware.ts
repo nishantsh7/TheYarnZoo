@@ -9,21 +9,21 @@ export async function middleware(req: NextRequest) {
 
   const { pathname } = req.nextUrl;
 
-  // Protect /admin routes
-  if (pathname.startsWith('/admin')) {
+  // Generic check for all protected routes
+  const isProtectedRoute = pathname.startsWith('/admin') || pathname.startsWith('/profile');
+
+  if (isProtectedRoute) {
     if (!token) {
-      // If no token, redirect to login page
       const loginUrl = new URL('/login', req.url);
-      loginUrl.searchParams.set('callbackUrl', pathname); // Pass the original path as callbackUrl
+      loginUrl.searchParams.set('callbackUrl', pathname);
       return NextResponse.redirect(loginUrl);
     }
+  }
 
-    // If token exists, check role
-    const userRole = (token.user as { role?: UserRole } | undefined)?.role;
+  // Role-specific check for /admin routes
+  if (pathname.startsWith('/admin')) {
+    const userRole = (token?.user as { role?: UserRole } | undefined)?.role;
     if (userRole !== 'admin') {
-      // If not admin, redirect to home page or a specific "not authorized" page
-      // For simplicity, redirecting to home for now.
-      // You could create a /unauthorized page and redirect there.
       return NextResponse.redirect(new URL('/', req.url));
     }
   }
@@ -34,5 +34,5 @@ export async function middleware(req: NextRequest) {
 
 // Specify which paths the middleware should run on
 export const config = {
-  matcher: ['/admin/:path*'], // Protect all routes under /admin
+  matcher: ['/admin/:path*', '/profile/:path*'], // Protect all routes under /admin and /profile
 };

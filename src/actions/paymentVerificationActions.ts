@@ -3,7 +3,7 @@
 
 import crypto from 'crypto';
 import { connectToDatabase } from '@/lib/mongodb';
-import type { Order, OrderItem, Product } from '@/types';
+import type { Order, Product } from '@/types';
 import { z } from 'zod';
 import { ObjectId } from 'mongodb';
 
@@ -26,35 +26,6 @@ export type VerifyPaymentActionResponse = {
   ourOrderId?: string;
   isVerified?: boolean;
 };
-
-async function decrementProductStock(items: OrderItem[]): Promise<void> {
-  const { db } = await connectToDatabase();
-  const productsCollection = db.collection<Product>('products');
-
-  for (const item of items) {
-    if (!ObjectId.isValid(item.productId)) {
-      console.warn(`Invalid productId for stock decrement: ${item.productId}`);
-      continue; 
-    }
-    try {
-      const productObjectId = new ObjectId(item.productId);
-      const updateResult = await productsCollection.updateOne(
-        { _id: productObjectId },
-        { $inc: { stock: -item.quantity } }
-      );
-
-      if (updateResult.matchedCount === 0) {
-        console.warn(`Product with _id ${item.productId} not found for stock decrement.`);
-      }
-      if (updateResult.modifiedCount === 0 && updateResult.matchedCount > 0) {
-        console.warn(`Stock for product _id ${item.productId} was not decremented (maybe already updated or stock check failed internally?).`);
-      }
-    } catch (error) {
-      console.error(`Error decrementing stock for product _id ${item.productId}:`, error);
-      // Decide if this should throw or just log. For now, logging.
-    }
-  }
-}
 
 export async function verifyRazorpayPaymentAction(
   input: z.infer<typeof VerifyPaymentInputSchema>
@@ -79,17 +50,55 @@ export async function verifyRazorpayPaymentAction(
       return { success: false, message: "Payment verification failed: Invalid signature.", ourOrderId, isVerified: false };
     }
 
+    // --- ** Atomic Stock Check & Decrement ** ---
     const { db } = await connectToDatabase();
     const ordersCollection = db.collection<Order>('orders');
+    const productsCollection = db.collection<Product>('products');
 
-    // Fetch the order to get items for stock decrement
     const order = await ordersCollection.findOne({ id: ourOrderId, razorpayOrderId: razorpay_order_id });
     if (!order) {
-        console.error(`Order not found for ourOrderId: ${ourOrderId} and razorpayOrderId: ${razorpay_order_id} when trying to fetch for stock decrement.`);
-        return { success: false, message: "Order details not found for stock update. Payment verified, but please contact support.", ourOrderId, isVerified: true };
+        return { success: false, message: "Order details not found. Payment verified, but please contact support.", ourOrderId, isVerified: true };
     }
     
-    const updateResult = await ordersCollection.updateOne(
+    // If order is not pending, it might have been processed already.
+    if (order.orderStatus !== 'pending') {
+        return { success: true, message: "Payment already confirmed.", ourOrderId, isVerified: true };
+    }
+
+    const successfullyDecremented: { productId: string; quantity: number }[] = [];
+
+    for (const item of order.items) {
+      const productObjectId = new ObjectId(item.productId);
+      const updateResult = await productsCollection.updateOne(
+        { _id: productObjectId, stock: { $gte: item.quantity } } as any,
+        { $inc: { stock: -item.quantity } }
+      );
+
+      if (updateResult.modifiedCount === 0) {
+        // Failed to secure stock for this item. Revert previous decrements.
+        for (const revertedItem of successfullyDecremented) {
+          await productsCollection.updateOne(
+            { _id: new ObjectId(revertedItem.productId) } as any,
+            { $inc: { stock: revertedItem.quantity } }
+          );
+        }
+        // Mark order as cancelled due to stock issue.
+        await ordersCollection.updateOne(
+          { id: ourOrderId },
+          { $set: { 
+              orderStatus: 'cancelled', 
+              paymentStatus: 'failed', // Or a custom status like 'refund_required'
+              updatedAt: new Date(),
+              razorpayPaymentId: razorpay_payment_id,
+            } }
+        );
+        return { success: false, message: `Sorry, ${item.name} went out of stock just as you were checking out. The order has been cancelled and will be refunded.`, ourOrderId, isVerified: true };
+      }
+      successfullyDecremented.push({ productId: item.productId, quantity: item.quantity });
+    }
+
+    // If we reach here, all stock was successfully decremented.
+    const finalUpdateResult = await ordersCollection.updateOne(
       { id: ourOrderId, razorpayOrderId: razorpay_order_id },
       {
         $set: {
@@ -102,19 +111,11 @@ export async function verifyRazorpayPaymentAction(
       }
     );
 
-    if (updateResult.matchedCount === 0) {
-      console.error(`Order not found for ourOrderId: ${ourOrderId} and razorpayOrderId: ${razorpay_order_id} during payment update.`);
-      return { success: false, message: "Payment verified, but order update failed in our system. Please contact support.", ourOrderId, isVerified: true };
+    if (finalUpdateResult.modifiedCount === 0) {
+      // This is a safeguard, should be unlikely if the status check at the top works.
+      return { success: false, message: "Order update failed after stock decrement. Please contact support immediately.", ourOrderId, isVerified: true };
     }
-    if (updateResult.modifiedCount === 0 && updateResult.matchedCount > 0) {
-      // Order was already updated. Still attempt stock decrement if items are available.
-      await decrementProductStock(order.items);
-      return { success: true, message: "Payment already confirmed. Stock updated (if applicable).", ourOrderId, isVerified: true };
-    }
-
-    // If update was successful (modifiedCount > 0)
-    await decrementProductStock(order.items);
-
+    
     return { success: true, message: "Payment verified, order updated, and stock decremented.", ourOrderId, isVerified: true };
 
   } catch (error) {

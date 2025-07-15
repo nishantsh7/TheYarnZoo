@@ -1,5 +1,7 @@
+
 import Link from 'next/link';
-import { Facebook, Instagram, Twitter, Mail } from 'lucide-react';
+import { Instagram } from 'lucide-react';
+import NewsletterForm from '../shared/NewsletterForm';
 
 const Footer = () => {
   return (
@@ -25,16 +27,11 @@ const Footer = () => {
         <div>
           <h4 className="font-semibold text-foreground mb-4">Connect With Us</h4>
           <div className="flex space-x-4 mb-4">
-            <Link href="#" aria-label="Facebook" className="text-muted-foreground hover:text-accent transition-colors"><Facebook size={24} /></Link>
             <Link href="#" aria-label="Instagram" className="text-muted-foreground hover:text-accent transition-colors"><Instagram size={24} /></Link>
-            <Link href="#" aria-label="Twitter" className="text-muted-foreground hover:text-accent transition-colors"><Twitter size={24} /></Link>
           </div>
           <h4 className="font-semibold text-foreground mb-2 mt-4">Newsletter</h4>
           <p className="text-sm mb-2">Stay updated with our latest toys and offers!</p>
-          <form className="flex">
-            <input type="email" placeholder="Enter your email" className="py-2 px-3 rounded-l-md border border-border focus:ring-accent focus:border-accent flex-grow text-sm" />
-            <button type="submit" className="bg-accent text-accent-foreground py-2 px-4 rounded-r-md hover:opacity-90 transition-opacity text-sm">Subscribe</button>
-          </form>
+          <NewsletterForm className="flex" />
         </div>
       </div>
       <div className="text-center text-sm mt-10 border-t border-border pt-8">

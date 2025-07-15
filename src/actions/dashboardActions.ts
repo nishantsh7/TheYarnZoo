@@ -3,7 +3,6 @@
 
 import { connectToDatabase } from '@/lib/mongodb';
 import type { Order, Product, UserDocument, DashboardStats } from '@/types';
-import { ObjectId } from 'mongodb';
 
 export async function getDashboardStatsAction(): Promise<DashboardStats> {
   try {

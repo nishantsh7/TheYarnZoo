@@ -5,25 +5,28 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
-import { Globe, Palette, Bell, Shield, Users, CreditCard as CreditCardIcon, Info } from "lucide-react"; 
+import { Globe, Palette, Bell, Shield, CreditCard as CreditCardIcon, Info, Users } from "lucide-react"; 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import UserRolesManager from "@/components/admin/settings/UserRolesManager";
+import NotificationSettingsForm from "@/components/admin/settings/NotificationSettingsForm";
+import { getNotificationSettingsAction } from "@/actions/settingsActions";
 
 
 export default async function AdminSettingsPage() {
+  const notificationSettings = await getNotificationSettingsAction();
 
   return (
     <div className="space-y-8">
       <h1 className="text-3xl font-headline font-bold text-gray-800">Settings</h1>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 mb-6">
+        <TabsList className="grid w-full grid-cols-4 md:grid-cols-6 mb-6">
           <TabsTrigger value="general"><Globe className="mr-1 h-4 w-4 hidden sm:inline-block"/>General</TabsTrigger>
           <TabsTrigger value="appearance"><Palette className="mr-1 h-4 w-4 hidden sm:inline-block"/>Appearance</TabsTrigger>
           <TabsTrigger value="notifications"><Bell className="mr-1 h-4 w-4 hidden sm:inline-block"/>Notifications</TabsTrigger>
           <TabsTrigger value="payments"><CreditCardIcon className="mr-1 h-4 w-4 hidden sm:inline-block"/>Payments</TabsTrigger>
+          <TabsTrigger value="user-roles"><Users className="mr-1 h-4 w-4 hidden sm:inline-block"/>User Roles</TabsTrigger>
           <TabsTrigger value="security"><Shield className="mr-1 h-4 w-4 hidden sm:inline-block"/>Security</TabsTrigger>
-          <TabsTrigger value="users"><Users className="mr-1 h-4 w-4 hidden sm:inline-block"/>User Roles</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -45,7 +48,7 @@ export default async function AdminSettingsPage() {
                 <Label htmlFor="storeCurrency">Default Currency</Label>
                 <Input id="storeCurrency" defaultValue="INR" />
               </div>
-              <Button className="bg-accent hover:bg-accent/90 text-accent-foreground btn-subtle-animate">Save General Settings</Button>
+              <Button className="bg-accent hover:bg-accent/90 text-accent-foreground btn-subtle-animate" disabled>Save General Settings</Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -71,7 +74,7 @@ export default async function AdminSettingsPage() {
                 </div>
                  <p className="text-sm text-muted-foreground">Colors are currently set in theme files.</p>
               </div>
-              <Button className="bg-accent hover:bg-accent/90 text-accent-foreground btn-subtle-animate">Save Appearance Settings</Button>
+              <Button className="bg-accent hover:bg-accent/90 text-accent-foreground btn-subtle-animate" disabled>Save Appearance Settings</Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -82,29 +85,8 @@ export default async function AdminSettingsPage() {
                     <CardTitle>Notification Settings</CardTitle>
                     <CardDescription>Configure email notifications for store events.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="flex items-center space-x-2">
-                        <Checkbox id="newOrderAdmin" defaultChecked />
-                        <Label htmlFor="newOrderAdmin">Notify admin on new order</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        <Checkbox id="newOrderCustomer" defaultChecked />
-                        <Label htmlFor="newOrderCustomer">Send order confirmation to customer</Label>
-                    </div>
-                     <div className="flex items-center space-x-2">
-                        <Checkbox id="shippingUpdateCustomer" defaultChecked />
-                        <Label htmlFor="shippingUpdateCustomer">Notify customer on shipping updates</Label>
-                    </div>
-                     <div className="flex items-center space-x-2">
-                        <Checkbox id="lowStockAdmin" />
-                        <Label htmlFor="lowStockAdmin">Notify admin on low stock alerts</Label>
-                    </div>
-                    <Separator className="my-4"/>
-                     <div className="space-y-2">
-                        <Label htmlFor="adminEmailNotif">Admin Notification Email</Label>
-                        <Input id="adminEmailNotif" type="email" defaultValue="admin@theyarnzoo.com" />
-                    </div>
-                    <Button className="bg-accent hover:bg-accent/90 text-accent-foreground btn-subtle-animate">Save Notification Settings</Button>
+                <CardContent>
+                    <NotificationSettingsForm initialData={notificationSettings} />
                 </CardContent>
             </Card>
         </TabsContent>
@@ -133,14 +115,15 @@ export default async function AdminSettingsPage() {
                         <Checkbox id="razorpayTestMode" defaultChecked disabled/>
                         <Label htmlFor="razorpayTestMode">Razorpay Test Mode is determined by the keys used (test or live).</Label>
                     </div>
-                    {/* <Button className="bg-accent hover:bg-accent/90 text-accent-foreground btn-subtle-animate">Save Payment Settings</Button> */}
-                    {/* Save button removed as settings are from .env */}
                 </CardContent>
             </Card>
         </TabsContent>
+        
+        <TabsContent value="user-roles">
+          <UserRolesManager />
+        </TabsContent>
 
         <TabsContent value="security"><Card><CardHeader><CardTitle>Security Settings</CardTitle></CardHeader><CardContent><p>Security settings placeholder.</p></CardContent></Card></TabsContent>
-        <TabsContent value="users"><Card><CardHeader><CardTitle>User Roles & Permissions</CardTitle></CardHeader><CardContent><p>User roles placeholder.</p></CardContent></Card></TabsContent>
         
       </Tabs>
     </div>

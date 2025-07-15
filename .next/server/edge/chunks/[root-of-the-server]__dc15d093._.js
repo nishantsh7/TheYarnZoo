@@ -36,20 +36,19 @@ async function middleware(req) {
         secret: process.env.NEXTAUTH_SECRET
     });
     const { pathname } = req.nextUrl;
-    // Protect /admin routes
-    if (pathname.startsWith('/admin')) {
+    // Generic check for all protected routes
+    const isProtectedRoute = pathname.startsWith('/admin') || pathname.startsWith('/profile');
+    if (isProtectedRoute) {
         if (!token) {
-            // If no token, redirect to login page
             const loginUrl = new URL('/login', req.url);
-            loginUrl.searchParams.set('callbackUrl', pathname); // Pass the original path as callbackUrl
+            loginUrl.searchParams.set('callbackUrl', pathname);
             return __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$esm$2f$server$2f$web$2f$spec$2d$extension$2f$response$2e$js__$5b$middleware$2d$edge$5d$__$28$ecmascript$29$__["NextResponse"].redirect(loginUrl);
         }
-        // If token exists, check role
-        const userRole = token.user?.role;
+    }
+    // Role-specific check for /admin routes
+    if (pathname.startsWith('/admin')) {
+        const userRole = token?.user?.role;
         if (userRole !== 'admin') {
-            // If not admin, redirect to home page or a specific "not authorized" page
-            // For simplicity, redirecting to home for now.
-            // You could create a /unauthorized page and redirect there.
             return __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$esm$2f$server$2f$web$2f$spec$2d$extension$2f$response$2e$js__$5b$middleware$2d$edge$5d$__$28$ecmascript$29$__["NextResponse"].redirect(new URL('/', req.url));
         }
     }
@@ -58,7 +57,8 @@ async function middleware(req) {
 }
 const config = {
     matcher: [
-        '/admin/:path*'
+        '/admin/:path*',
+        '/profile/:path*'
     ]
 };
 }}),

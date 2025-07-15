@@ -19,6 +19,7 @@ export default function AdminCustomersPage() {
   const [customers, setCustomers] = useState<AdminCustomerInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isStartingChat, setIsStartingChat] = useState<string | null>(null);
+
   const { data: session } = useSession();
   const router = useRouter();
   const { toast } = useToast();
@@ -80,7 +81,7 @@ export default function AdminCustomersPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Customer List</CardTitle>
-          <CardDescription>View and manage customer information and support interactions.</CardDescription>
+          <CardDescription>View customer information and initiate support interactions.</CardDescription>
         </CardHeader>
         <CardContent>
           {customers.length === 0 ? (
@@ -130,7 +131,7 @@ export default function AdminCustomersPage() {
                             {customer.role === 'admin' ? 'Chat (N/A)' : 'Start Chat'}
                           </DropdownMenuItem>
                           <DropdownMenuItem className="flex items-center cursor-pointer" disabled>
-                            <FileText className="mr-2 h-4 w-4" /> View Order History (Placeholder)
+                            <FileText className="mr-2 h-4 w-4" /> View Order History
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -140,27 +141,6 @@ export default function AdminCustomersPage() {
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
-
-      <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle>Customer Support Tools</CardTitle>
-          <CardDescription>Additional tools for customer support (placeholders).</CardDescription>
-        </CardHeader>
-        <CardContent className="grid md:grid-cols-2 gap-4">
-          <Button variant="outline" className="w-full justify-start text-left" disabled>
-            <FileText className="mr-2 h-5 w-5" /> View Support Tickets
-          </Button>
-          <Button variant="outline" className="w-full justify-start text-left" disabled>
-            <FileText className="mr-2 h-5 w-5" /> Export Customer Data
-          </Button>
-           <Button variant="outline" className="w-full justify-start text-left" disabled>
-            <FileText className="mr-2 h-5 w-5" /> Process Refunds
-          </Button>
-          <Button variant="outline" className="w-full justify-start text-left" disabled>
-            <MessageCircle className="mr-2 h-5 w-5" /> Live Chat Dashboard
-          </Button>
         </CardContent>
       </Card>
     </div>

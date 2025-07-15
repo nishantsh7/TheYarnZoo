@@ -1,0 +1,32 @@
+{
+  "hosting": {
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "run": {
+          "serviceId": "the-yarn-zoo",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "**",
+        "appHosting": {
+          "target": "the-yarn-zoo"
+        }
+      }
+    ]
+  },
+  "apphosting": [
+    {
+      "backendId": "the-yarn-zoo",
+      "rootDir": "/",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "functions"
+      ]
+    }
+  ]
+}

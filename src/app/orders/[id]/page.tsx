@@ -8,30 +8,40 @@ import { CheckCircle, Package, ShoppingBag, Truck, AlertTriangle } from 'lucide-
 import Link from 'next/link';
 import Image from 'next/image';
 
-export async function generateMetadata({ params }: { params: { id: string }}) {
-  const order = await getOrderById(params.id);
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  // Use public ID for metadata generation
+  const { id } = await params;
+  
+  // Use public ID for metadata generation
+  const order = await getOrderById(id);
   if (!order) {
     return {
       title: 'Order Not Found - TheYarnZoo',
-      description: `Details for order ${params.id} could not be found.`,
+      description: `The requested order could not be found.`,
     }
   }
   return {
-    title: `Order ${params.id} - TheYarnZoo`,
-    description: `Details for your order ${params.id}.`,
+    title: `Order ${order.id} - TheYarnZoo`,
+    description: `Details for your order ${order.id}.`,
   };
 }
 
-
-export default async function OrderDetailPage({ params, searchParams }: { params: { id: string }, searchParams: { status?: string }}) {
-  const order = await getOrderById(params.id);
-
+export default async function OrderDetailPage({ 
+  params, 
+  searchParams 
+}: { 
+  params: Promise<{ id: string }>, 
+  searchParams: Promise<{ status?: string }> 
+}) {
+  const { id } = await params;
+  const { status } = await searchParams;
+  const order = await getOrderById(id);
   if (!order) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
         <AlertTriangle className="mx-auto h-16 w-16 text-destructive mb-4" />
         <h1 className="text-3xl font-bold text-destructive mb-4">Order Not Found</h1>
-        <p className="text-muted-foreground mb-6">We couldn't find an order with ID: {params.id}. It might have been a test order or an issue occurred.</p>
+        <p className="text-muted-foreground mb-6">We couldn't find an order with ID: {id}. It might have been a test order or an issue occurred.</p>
         <Button asChild>
           <Link href="/products">Continue Shopping</Link>
         </Button>
@@ -39,7 +49,7 @@ export default async function OrderDetailPage({ params, searchParams }: { params
     );
   }
   
-  const isSuccess = searchParams.status === 'success';
+  const isSuccess = status === 'success';
   const shippingCost = 50.00; // INR, assuming fixed
   const subtotal = order.totalAmount - shippingCost;
 
@@ -56,7 +66,6 @@ export default async function OrderDetailPage({ params, searchParams }: { params
         return <Package className="h-5 w-5 text-muted-foreground" />;
     }
   };
-
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -88,7 +97,6 @@ export default async function OrderDetailPage({ params, searchParams }: { params
                 <div key={item.productId} className="py-4 flex items-start gap-4">
                   <Image src={item.image || 'https://placehold.co/64x64.png'} alt={item.name} width={64} height={64} className="rounded-md border" data-ai-hint="toy product"/>
                   <div className="flex-grow">
-                    {/* Link to product page could be re-added if product slugs are stored with order items or fetched */}
                     <span className="font-semibold text-foreground">{item.name}</span>
                     <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
                   </div>
@@ -136,7 +144,7 @@ export default async function OrderDetailPage({ params, searchParams }: { params
               </div>
               <p>Payment: <span className={`font-medium ${order.paymentStatus === 'paid' ? 'text-green-600' : 'text-yellow-600'}`}>{order.paymentStatus}</span></p>
               {order.trackingNumber && (
-                <p>Tracking #: <a href="#" className="text-accent hover:underline font-medium">{order.trackingNumber}</a></p>
+                <p>Tracking #: <span className="font-medium text-accent">{order.trackingNumber}</span></p>
               )}
               <p>Order Date: {new Date(order.createdAt).toLocaleDateString()}</p>
             </CardContent>

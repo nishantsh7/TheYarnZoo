@@ -7,17 +7,22 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Info } from "lucide-react";
+import PaginationControls from '@/components/shared/PaginationControls';
+
+const PRODUCTS_PER_PAGE = 8;
+const ALL_FILTER_VALUE = "__ALL__";
 
 interface ProductListClientProps {
   initialProducts: Product[];
 }
 
-const ALL_FILTER_VALUE = "__ALL__"; // Match the value used in FilterControls
-
 export default function ProductListClient({ initialProducts }: ProductListClientProps) {
   const searchParams = useSearchParams();
-  const [displayedProducts, setDisplayedProducts] = useState<Product[]>(initialProducts);
+  const [displayedProducts, setDisplayedProducts] = useState<Product[]>([]);
   const [searchMessage, setSearchMessage] = useState<string | null>(null);
+  const [totalPages, setTotalPages] = useState(0);
+
+  const page = Number(searchParams.get('page')) || 1;
 
   useEffect(() => {
     let tempProducts = [...initialProducts];
@@ -27,7 +32,7 @@ export default function ProductListClient({ initialProducts }: ProductListClient
     const resultsParam = searchParams.get('results');
     
     // 1. Handle AI Search or Simple Text Search
-    if (searchQuery && resultsParam) { // AI Search results
+    if (searchQuery && resultsParam) {
       const resultSlugsOrNames = resultsParam.split(',');
       tempProducts = tempProducts.filter(product => 
         resultSlugsOrNames.some(slugOrName => 
@@ -38,7 +43,7 @@ export default function ProductListClient({ initialProducts }: ProductListClient
       currentSearchMessage = tempProducts.length > 0 
         ? `Showing results for "${searchQuery}" based on your description.`
         : `No products found directly matching your description "${searchQuery}". Try rephrasing or browse categories.`;
-    } else if (searchQuery) { // Simple text search (non-AI)
+    } else if (searchQuery) {
         tempProducts = tempProducts.filter(product =>
             product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             product.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -91,24 +96,37 @@ export default function ProductListClient({ initialProducts }: ProductListClient
         tempProducts.sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0));
         break;
       default:
-        tempProducts.sort((a, b) => a.name.localeCompare(b.name)); // Default sort
+        tempProducts.sort((a, b) => a.name.localeCompare(b.name));
     }
     
-    setDisplayedProducts(tempProducts);
+    // 4. Pagination Logic
+    const calculatedTotalPages = Math.ceil(tempProducts.length / PRODUCTS_PER_PAGE);
+    setTotalPages(calculatedTotalPages);
+    
+    const startIndex = (page - 1) * PRODUCTS_PER_PAGE;
+    const endIndex = startIndex + PRODUCTS_PER_PAGE;
+    
+    setDisplayedProducts(tempProducts.slice(startIndex, endIndex));
     setSearchMessage(currentSearchMessage);
 
-  }, [searchParams, initialProducts]);
+  }, [searchParams, initialProducts, page]);
 
-  // Determine message for no products found *after* all filtering
+  if (initialProducts.length === 0) {
+    return (
+       <div className="w-full text-center py-10">
+         <p className="text-xl text-muted-foreground">No products available at the moment.</p>
+       </div>
+     );
+  }
+
   let finalMessage = searchMessage;
   if (displayedProducts.length === 0 && !searchMessage) {
      finalMessage = "No products match the current filters. Try adjusting your filters or clearing them.";
   } else if (displayedProducts.length === 0 && searchMessage?.startsWith("No products found for")) {
-    // Keep the specific search message if simple/AI search yielded no results
+    // Keep the specific search message
   } else if (displayedProducts.length === 0 && searchMessage) {
     finalMessage = `${searchMessage} However, no products match the additional filters applied.`;
   }
-
 
   if (displayedProducts.length === 0) {
      return (
@@ -129,7 +147,7 @@ export default function ProductListClient({ initialProducts }: ProductListClient
   
   return (
     <div className="w-full">
-      {searchMessage && displayedProducts.length > 0 && ( // Only show search message if there are results to qualify
+      {searchMessage && displayedProducts.length > 0 && (
         <Alert className="mb-6 bg-secondary border-primary/30 text-primary-foreground">
           <Info className="h-5 w-5 text-primary-foreground/80" />
           <AlertTitle className="font-semibold">Search Information</AlertTitle>
@@ -143,7 +161,7 @@ export default function ProductListClient({ initialProducts }: ProductListClient
           <ProductCard key={product.id} product={product} />
         ))}
       </div>
+      <PaginationControls totalPages={totalPages} currentPage={page} />
     </div>
   );
 }
-

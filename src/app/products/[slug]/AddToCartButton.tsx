@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -16,8 +17,12 @@ export default function AddToCartButton({ product }: AddToCartButtonProps) {
   const [quantity, setQuantity] = useState(1);
 
   const handleAddToCart = () => {
+    if (!product._id) {
+      console.error("Product _id is missing, cannot add to cart");
+      return;
+    }
     addToCart({
-      productId: product.id,
+      productId: product._id, // Use the database _id
       name: product.name,
       price: product.price,
       image: product.images[0],

@@ -4,7 +4,7 @@ import type { Order } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, Eye, Truck, CheckCircle, XCircle, ShoppingCart } from 'lucide-react'; // Added ShoppingCart
+import { MoreHorizontal, Eye, ShoppingCart } from 'lucide-react';
 import Link from 'next/link';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -75,25 +75,10 @@ export default async function AdminOrdersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem asChild>
-                            <Link href={`/admin/orders/${order.id}`} className="flex items-center cursor-pointer">
-                              <Eye className="mr-2 h-4 w-4" /> View Details
+                            <Link href={`/admin/orders/${order._id}`} className="flex items-center cursor-pointer">
+                              <Eye className="mr-2 h-4 w-4" /> View Details & Actions
                             </Link>
                           </DropdownMenuItem>
-                          {order.orderStatus === 'processing' && (
-                            <DropdownMenuItem className="flex items-center cursor-pointer"> {/* Add action later */}
-                              <Truck className="mr-2 h-4 w-4" /> Mark as Shipped
-                            </DropdownMenuItem>
-                          )}
-                          {order.orderStatus === 'shipped' && (
-                            <DropdownMenuItem className="flex items-center cursor-pointer"> {/* Add action later */}
-                              <CheckCircle className="mr-2 h-4 w-4" /> Mark as Delivered
-                            </DropdownMenuItem>
-                          )}
-                          {order.orderStatus !== 'cancelled' && order.orderStatus !== 'delivered' && (
-                            <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10 flex items-center cursor-pointer"> {/* Add action later */}
-                              <XCircle className="mr-2 h-4 w-4" /> Cancel Order
-                            </DropdownMenuItem>
-                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

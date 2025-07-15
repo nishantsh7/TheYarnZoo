@@ -4,8 +4,10 @@
 import { z } from 'zod';
 import Razorpay from 'razorpay';
 import { connectToDatabase } from '@/lib/mongodb';
-import type { Order, OrderItem, ShippingAddress, CartItem } from '@/types'; // Updated OrderItem
-import { ObjectId } from 'mongodb';
+import type { Order, OrderItem, Product } from '@/types';
+import { ObjectId, Filter } from 'mongodb';
+import { revalidatePath } from 'next/cache';
+import { sendOrderStatusUpdateEmail } from '@/lib/email-service';
 
 const RAZORPAY_KEY_ID = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
@@ -29,15 +31,21 @@ const CreateOrderInputSchema = z.object({
     postalCode: z.string().min(1, "Postal code is required"),
     country: z.string().min(1, "Country is required"),
   }),
-  cartItems: z.array(z.object({ // cartItems from client
-    productId: z.string(), // Should be MongoDB _id string
+  cartItems: z.array(z.object({
+    productId: z.string(),
     name: z.string(),
     price: z.number(),
     image: z.string().url(),
     quantity: z.number().min(1),
-    stock: z.number(), // Current stock for reference, not used for final order item
+    stock: z.number(), // This is the stock at the time of adding to cart, used for reference
   })).min(1, "Cart cannot be empty"),
   userId: z.string().optional(),
+});
+
+const UpdateOrderStatusSchema = z.object({
+    orderId: z.string().refine(val => ObjectId.isValid(val), "Invalid Order ID"),
+    newStatus: z.enum(['processing', 'shipped', 'delivered', 'cancelled']),
+    trackingNumber: z.string().optional(),
 });
 
 export type CreatePaymentOrderActionResponse = {
@@ -49,6 +57,12 @@ export type CreatePaymentOrderActionResponse = {
   razorpayKeyId?: string;
 };
 
+export type UpdateOrderStatusActionResponse = {
+    success: boolean;
+    message: string;
+};
+
+
 export async function createPaymentOrderAction(
   input: z.infer<typeof CreateOrderInputSchema>
 ): Promise<CreatePaymentOrderActionResponse> {
@@ -59,13 +73,27 @@ export async function createPaymentOrderAction(
 
   const { shippingDetails, cartItems, userId } = validatedFields.data;
 
-  const totalAmountInRupees = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const shippingCost = 50; 
-  const finalAmountInRupees = totalAmountInRupees + shippingCost;
-  const amountInPaisa = Math.round(finalAmountInRupees * 100);
-
   try {
     const { db } = await connectToDatabase();
+    const productsCollection = db.collection<Product>('products');
+
+    // ** Preliminary Stock Check **
+    for (const item of cartItems) {
+      if (!ObjectId.isValid(item.productId)) {
+        return { success: false, message: `Invalid product ID for ${item.name}.` };
+      }
+      const product = await productsCollection.findOne({ _id: new ObjectId(item.productId) } as any);
+      if (!product || product.stock < item.quantity) {
+        return { success: false, message: `Sorry, ${item.name} is out of stock or has insufficient quantity. Please update your cart.` };
+      }
+    }
+
+
+    const totalAmountInRupees = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const shippingCost = 50; 
+    const finalAmountInRupees = totalAmountInRupees + shippingCost;
+    const amountInPaisa = Math.round(finalAmountInRupees * 100);
+
     const ordersCollection = db.collection<Omit<Order, '_id'>>('orders');
     
     const internalOrderId = `TYZ-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
@@ -88,11 +116,10 @@ export async function createPaymentOrderAction(
       return { success: false, message: `Failed to create Razorpay order: ${razorpayError instanceof Error ? razorpayError.message : 'Unknown Razorpay error'}` };
     }
 
-    // Transform CartItem[] to OrderItem[] for storage
     const orderItemsToStore: OrderItem[] = cartItems.map(ci => ({
-        productId: ci.productId, // This is the MongoDB _id string
+        productId: ci.productId,
         name: ci.name,
-        price: ci.price, // Price at time of order
+        price: ci.price,
         image: ci.image,
         quantity: ci.quantity,
     }));
@@ -114,6 +141,7 @@ export async function createPaymentOrderAction(
     const result = await ordersCollection.insertOne(newOrderDocument);
     if (!result.insertedId) {
       console.error("Failed to insert order into database after Razorpay order creation.");
+      // Note: At this point, a Razorpay order exists but our DB failed. This is rare but needs manual reconciliation.
       return { success: false, message: "Database error: Could not save order. Please contact support." };
     }
 
@@ -136,39 +164,83 @@ export async function createPaymentOrderAction(
   }
 }
 
-// New function to get orders for admin panel
 export async function getAdminOrders(): Promise<Order[]> {
   try {
     const { db } = await connectToDatabase();
+    // Note: Not strongly typing the collection here avoids the error, which is a valid strategy.
     const orderDocs = await db.collection('orders').find({}).sort({ createdAt: -1 }).toArray();
     
-    // Map MongoDB document to Order type
     return orderDocs.map(doc => ({
       ...doc,
-      _id: doc._id.toString(), // Convert ObjectId to string for client-side _id if needed by type
-      // id is already the user-friendly string
-      createdAt: doc.createdAt, // Already a Date from DB
-      updatedAt: doc.updatedAt, // Already a Date from DB
-      items: doc.items.map((item: any) => ({ // Ensure items are mapped correctly
-          productId: item.productId.toString(), // Assuming productId in DB is ObjectId for products
+      _id: doc._id.toString(),
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
+      items: doc.items.map((item: any) => ({
+          productId: item.productId.toString(),
           name: item.name,
           price: item.price,
           image: item.image,
           quantity: item.quantity,
       }))
-    })) as unknown as Order[]; // Cast needed due to ObjectId string conversion nuances
+    })) as unknown as Order[];
   } catch (error) {
     console.error("Error fetching admin orders:", error);
     return [];
   }
 }
 
-// Helper to get a single order, e.g. for order detail page.
+export async function getOrdersByUserId(userId: string, limit?: number): Promise<Order[]> {
+  if (!ObjectId.isValid(userId)) {
+    console.error("Invalid user ID for getOrdersByUserId:", userId);
+    return [];
+  }
+  try {
+    const { db } = await connectToDatabase();
+    const query = { userId: userId };
+    let cursor = db.collection('orders').find(query).sort({ createdAt: -1 });
+
+    if (limit) {
+      cursor = cursor.limit(limit);
+    }
+    
+    const orderDocs = await cursor.toArray();
+    
+    return orderDocs.map(doc => ({
+      ...doc,
+      _id: doc._id.toString(),
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
+      items: doc.items.map((item: any) => ({
+          productId: item.productId.toString(),
+          name: item.name,
+          price: item.price,
+          image: item.image,
+          quantity: item.quantity,
+      }))
+    })) as unknown as Order[];
+  } catch (error) {
+    console.error(`Error fetching orders for user ${userId}:`, error);
+    return [];
+  }
+}
+
+
 export async function getOrderById(orderId: string): Promise<Order | null> {
   try {
     const { db } = await connectToDatabase();
-    // Assuming orderId is the custom string ID `TYZ-xxxx`
-    const orderDoc = await db.collection('orders').findOne({ id: orderId });
+    const isObjectId = ObjectId.isValid(orderId);
+    
+    let query: Filter<any>;
+    if (isObjectId) {
+        query = { _id: new ObjectId(orderId) };
+    } else if (orderId.startsWith('TYZ-')) {
+        query = { id: orderId };
+    } else {
+        console.error(`Invalid orderId format: ${orderId}`);
+        return null;
+    }
+
+    const orderDoc = await db.collection('orders').findOne(query);
     if (!orderDoc) return null;
 
     return {
@@ -186,4 +258,70 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
     console.error(`Error fetching order by id ${orderId}:`, error);
     return null;
   }
+}
+
+export async function updateOrderStatusAction(
+  data: z.infer<typeof UpdateOrderStatusSchema>
+): Promise<UpdateOrderStatusActionResponse> {
+    const validatedFields = UpdateOrderStatusSchema.safeParse(data);
+    if (!validatedFields.success) {
+        return { success: false, message: "Invalid input: " + JSON.stringify(validatedFields.error.flatten().fieldErrors) };
+    }
+
+    const { orderId, newStatus, trackingNumber } = validatedFields.data;
+    const orderObjectId = new ObjectId(orderId);
+
+    try {
+        const { db } = await connectToDatabase();
+        const ordersCollection = db.collection<Order>('orders');
+        
+        // FIX: Cast the filter to `any` to resolve the TypeScript error.
+        // This tells TypeScript to trust that the query is valid for the MongoDB driver,
+        // even though the `ObjectId` type doesn't match the `string` type of `Order._id`.
+        const filter = { _id: orderObjectId };
+        
+        const currentOrder = await ordersCollection.findOne(filter as any);
+        if (!currentOrder) {
+            return { success: false, message: "Order not found." };
+        }
+
+        const updateData: any = {
+            orderStatus: newStatus,
+            updatedAt: new Date(),
+        };
+
+        if (newStatus === 'shipped' && trackingNumber) {
+            updateData.trackingNumber = trackingNumber;
+        }
+
+        // FIX: Apply the same `as any` cast to the filter in the update operation.
+        const result = await ordersCollection.updateOne(
+            filter as any,
+            { $set: updateData }
+        );
+
+        if (result.modifiedCount === 0) {
+            return { success: false, message: "Failed to update order status or status was already set." };
+        }
+        
+        // Send email notification to the customer
+        await sendOrderStatusUpdateEmail({
+            customerEmail: currentOrder.shippingAddress.email || currentOrder.userEmail!,
+            customerName: currentOrder.shippingAddress.name,
+            orderId: currentOrder.id, // Use the internal, user-friendly ID
+            newStatus: newStatus,
+            trackingNumber: trackingNumber,
+        });
+
+        // Revalidate paths to reflect the changes in the UI immediately
+        revalidatePath('/admin/orders');
+        revalidatePath(`/admin/orders/${orderId}`);
+        revalidatePath(`/orders/${currentOrder.id}`);
+
+        return { success: true, message: `Order status successfully updated to ${newStatus}.` };
+
+    } catch (error) {
+        console.error("updateOrderStatusAction Error:", error);
+        return { success: false, message: "An unexpected error occurred during status update." };
+    }
 }

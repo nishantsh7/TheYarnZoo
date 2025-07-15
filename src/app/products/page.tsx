@@ -41,6 +41,24 @@ function ProductListSkeleton() {
   );
 }
 
+function FilterControlsSkeleton() {
+  return (
+    <aside className="w-full md:w-72 lg:w-80 space-y-6 p-4 bg-card rounded-lg shadow-lg">
+      <div className="flex justify-between items-center">
+        <Skeleton className="h-7 w-24" />
+      </div>
+      <div className="space-y-4 pt-2">
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-12 w-full" />
+      </div>
+      <Skeleton className="h-10 w-full" />
+    </aside>
+  );
+}
+
+
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
   const allProducts = await getPublicProducts();
   const categories = await getCategories(); // Fetch from DB
@@ -61,7 +79,9 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       <h1 className="text-4xl font-headline font-bold text-center text-gray-700 mb-12">Our Lovely Toys</h1>
       
       <div className="flex flex-col md:flex-row gap-8">
-        <FilterControls categories={categories} materials={materials} maxPrice={maxPrice} />
+        <Suspense fallback={<FilterControlsSkeleton />}>
+          <FilterControls categories={categories} materials={materials} maxPrice={maxPrice} />
+        </Suspense>
         <main className="flex-1">
           <Suspense fallback={<ProductListSkeleton />}>
             {/* Pass all products fetched from DB. ProductListClient will handle filtering based on searchParams */}

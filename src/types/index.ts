@@ -58,7 +58,7 @@ export interface OrderItem {
 }
 
 export interface Order {
-  _id?: ObjectId; 
+  _id?: string; 
   id: string; 
   userId?: string; 
   userEmail?: string; 
@@ -105,6 +105,22 @@ export interface DashboardStats {
 }
 
 // Chat Feature Types
+export interface ChatSession {
+  _id?: ObjectId; 
+  customerId: ObjectId;
+  customerName: string;
+  customerEmail: string;
+  adminId: ObjectId | null;
+  lastMessage?: string;
+  lastMessageAt?: Date;
+  lastMessageSenderType?: 'admin' | 'customer';
+  customerUnreadCount: number;
+  adminUnreadCount: number;
+  status: 'open' | 'closed_by_admin' | 'closed_by_customer' | 'pending_customer_reply' | 'pending_admin_reply';
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface ChatMessage {
   _id: string; 
   sessionId: string;
@@ -112,27 +128,46 @@ export interface ChatMessage {
   senderType: 'admin' | 'customer';
   text: string;
   timestamp: Date;
-  readByAdmin?: boolean; // Kept for potential future granular tracking
-  readByCustomer?: boolean; // Kept for potential future granular tracking
+  readByAdmin?: boolean; 
+  readByCustomer?: boolean; 
 }
 
-export interface ChatSession {
+export interface ChatSessionListItem {
   _id: string; 
-  customerId: string; // ObjectId as string
-  customerName: string; // Mandatory
-  customerEmail: string; // Mandatory
-  adminId?: string | null; 
+  customerId: string; 
+  customerName: string; 
+  customerEmail: string; 
+  adminId: string | null; 
   lastMessage?: string; 
   lastMessageAt?: Date;
   lastMessageSenderType?: 'admin' | 'customer';
-  customerUnreadCount: number; // Messages unread by the customer
-  adminUnreadCount: number; // Messages unread by any admin
+  customerUnreadCount: number; 
+  adminUnreadCount: number; 
   status: 'open' | 'closed_by_admin' | 'closed_by_customer' | 'pending_customer_reply' | 'pending_admin_reply';
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface ChatSessionListItem extends ChatSession {
-  // Potentially add other fields specifically for the list item if needed
+export interface NewsletterSubscription {
+  _id?: ObjectId;
+  email: string;
+  subscribedAt: Date;
 }
 
+export type ProfileActionResponse = {
+  success: boolean;
+  message: string;
+};
+
+export type MonthlySalesData = {
+  month: string;
+  total: number;
+};
+
+export interface NotificationSettings {
+  newOrderAdmin: boolean;
+  newOrderCustomer: boolean;
+  shippingUpdateCustomer: boolean;
+  lowStockAdmin: boolean;
+  adminEmail: string;
+}

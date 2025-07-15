@@ -6,6 +6,7 @@ import ProductCard from '@/components/products/ProductCard';
 import { getFeaturedProducts } from '@/lib/mock-data'; // Corrected import path
 import type { Product } from '@/types';
 import { ArrowRight, Sparkles } from 'lucide-react';
+import NewsletterForm from '@/components/shared/NewsletterForm';
 
 export default async function HomePage() {
   const featuredProducts = await getFeaturedProducts(4); // Fetch 4 featured products from DB
@@ -78,10 +79,7 @@ export default async function HomePage() {
          <p className="text-foreground max-w-xl mx-auto mb-6">
            Join our newsletter for exclusive updates, new arrivals, and special discounts.
          </p>
-         <form className="flex max-w-md mx-auto">
-            <input type="email" placeholder="Enter your email address" className="py-3 px-4 rounded-l-md border-border focus:ring-accent focus:border-accent flex-grow" />
-            <Button type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground py-3 px-6 rounded-r-md btn-subtle-animate">Subscribe</Button>
-         </form>
+         <NewsletterForm className="flex max-w-md mx-auto" />
       </section>
     </div>
   );

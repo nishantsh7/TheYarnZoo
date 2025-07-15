@@ -53,7 +53,7 @@ export async function getAdminChatSessions(): Promise<ChatSessionListItem[]> {
 
     return sessions.map(s => ({
       ...s,
-      _id: s._id.toString(),
+      _id: s._id!.toString(),
       customerId: s.customerId.toString(),
       adminId: s.adminId ? s.adminId.toString() : null,
     }));
@@ -78,7 +78,7 @@ export async function getCustomerChatSessions(customerId: string): Promise<ChatS
 
     return sessions.map(s => ({
       ...s,
-      _id: s._id.toString(),
+      _id: s._id!.toString(),
       customerId: s.customerId.toString(),
       adminId: s.adminId ? s.adminId.toString() : null,
     }));
@@ -96,7 +96,7 @@ export async function getMessagesForSession(sessionId: string): Promise<ChatMess
   }
   try {
     const { db } = await connectToDatabase();
-    const messagesCollection = db.collection<ChatMessage>('chatMessages');
+    const messagesCollection = db.collection('chatMessages'); // Use raw collection
     const messages = await messagesCollection.find({ sessionId: new ObjectId(sessionId) })
       .sort({ timestamp: 1 })
       .toArray();
@@ -106,7 +106,7 @@ export async function getMessagesForSession(sessionId: string): Promise<ChatMess
       _id: m._id.toString(),
       sessionId: m.sessionId.toString(),
       senderId: m.senderId.toString(),
-    }));
+    })) as ChatMessage[];
   } catch (error) {
     console.error(`Error fetching messages for session ${sessionId}:`, error);
     return [];
@@ -133,7 +133,7 @@ export async function sendAdminMessageAction(input: {
 
   try {
     const { db } = await connectToDatabase();
-    const messagesCollection = db.collection<Omit<ChatMessage, '_id'>>('chatMessages');
+    const messagesCollection = db.collection('chatMessages');
     const sessionsCollection = db.collection<ChatSession>('chatSessions');
 
     const sessionObjectId = new ObjectId(sessionId);
@@ -144,7 +144,7 @@ export async function sendAdminMessageAction(input: {
       return { success: false, message: "Chat session not found." };
     }
 
-    const newMessageDocument: Omit<ChatMessage, '_id' | 'readByAdmin' | 'readByCustomer'> = {
+    const newMessageDocument = {
       sessionId: sessionObjectId,
       senderId: senderObjectId,
       senderType: senderType,
@@ -184,11 +184,13 @@ export async function sendAdminMessageAction(input: {
     revalidatePath(`/profile/support?chatId=${sessionId}`);
 
 
-    const insertedMessage = {
+    const insertedMessage: ChatMessage = {
       _id: messageResult.insertedId.toString(),
-      ...newMessageDocument,
       sessionId: newMessageDocument.sessionId.toString(),
       senderId: newMessageDocument.senderId.toString(),
+      senderType: newMessageDocument.senderType,
+      text: newMessageDocument.text,
+      timestamp: newMessageDocument.timestamp,
     };
 
     return { success: true, message: "Message sent.", chatMessage: insertedMessage };
@@ -219,7 +221,7 @@ export async function sendCustomerMessageAction(input: {
 
   try {
     const { db } = await connectToDatabase();
-    const messagesCollection = db.collection<Omit<ChatMessage, '_id'>>('chatMessages');
+    const messagesCollection = db.collection('chatMessages');
     const sessionsCollection = db.collection<ChatSession>('chatSessions');
 
     const sessionObjectId = new ObjectId(sessionId);
@@ -230,7 +232,7 @@ export async function sendCustomerMessageAction(input: {
       return { success: false, message: "Chat session not found or you do not have access." };
     }
 
-    const newMessageDocument: Omit<ChatMessage, '_id' | 'readByAdmin' | 'readByCustomer'> = {
+    const newMessageDocument = {
       sessionId: sessionObjectId,
       senderId: senderObjectId,
       senderType: senderType,
@@ -268,11 +270,13 @@ export async function sendCustomerMessageAction(input: {
     revalidatePath(`/profile/support`); 
     revalidatePath(`/profile/support?chatId=${sessionId}`);
 
-    const insertedMessage = {
+    const insertedMessage: ChatMessage = {
       _id: messageResult.insertedId.toString(),
-      ...newMessageDocument,
       sessionId: newMessageDocument.sessionId.toString(),
       senderId: newMessageDocument.senderId.toString(),
+      senderType: newMessageDocument.senderType,
+      text: newMessageDocument.text,
+      timestamp: newMessageDocument.timestamp,
     };
 
     return { success: true, message: "Message sent.", chatMessage: insertedMessage };
@@ -315,19 +319,19 @@ export async function ensureChatSessionWithCustomer(input: {
         { _id: session._id },
         { $set: { adminId: adminObjectId, adminUnreadCount: 0, updatedAt: new Date(), status: session.status === 'closed_by_admin' ? 'open' : session.status } } 
       );
-      return { success: true, message: "Existing session found.", sessionId: session._id.toString(), isNew: false };
+      return { success: true, message: "Existing session found.", sessionId: session._id!.toString(), isNew: false };
     } else {
-      const newSessionDocument: Omit<ChatSession, '_id'> = {
+      const newSessionDocument = {
         customerId: customerObjectId,
         customerName: customer.name,
         customerEmail: customer.email,
         adminId: adminObjectId,
         lastMessage: "Chat initiated by admin.",
         lastMessageAt: new Date(),
-        lastMessageSenderType: 'admin',
+        lastMessageSenderType: 'admin' as const,
         customerUnreadCount: 1, 
         adminUnreadCount: 0,
-        status: 'pending_customer_reply',
+        status: 'pending_customer_reply' as const,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -374,19 +378,19 @@ export async function ensureCustomerChatSession(input: { customerId: string }): 
                 { _id: session._id },
                 { $set: { customerUnreadCount: 0, updatedAt: new Date() } }
             );
-            return { success: true, message: "Active session found.", sessionId: session._id.toString(), isNew: false };
+            return { success: true, message: "Active session found.", sessionId: session._id!.toString(), isNew: false };
         } else {
-            const newSessionDocument: Omit<ChatSession, '_id'> = {
+            const newSessionDocument = {
                 customerId: customerObjectId,
                 customerName: customer.name,
                 customerEmail: customer.email,
                 adminId: null, 
                 lastMessage: "Chat session started.",
                 lastMessageAt: new Date(),
-                lastMessageSenderType: 'customer', 
+                lastMessageSenderType: 'customer' as const, 
                 customerUnreadCount: 0,
                 adminUnreadCount: 1, 
-                status: 'pending_admin_reply', 
+                status: 'pending_admin_reply' as const, 
                 createdAt: new Date(),
                 updatedAt: new Date(),
             };

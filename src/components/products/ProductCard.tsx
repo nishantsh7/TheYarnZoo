@@ -15,13 +15,14 @@ interface ProductCardProps {
 const ProductCard = ({ product }: ProductCardProps) => {
   const { addToCart } = useCart();
 
-  const handleAddToCart = () => {
+  const handleAddToCart = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation(); // Prevent link navigation when clicking the button
     if (!product._id) {
       console.error("Product _id is missing, cannot add to cart");
       return;
     }
     addToCart({
-      productId: product._id, 
+      productId: product._id, // Use the database _id
       name: product.name,
       price: product.price,
       image: product.images && product.images.length > 0 ? product.images[0] : 'https://placehold.co/300x300.png',
@@ -33,7 +34,7 @@ const ProductCard = ({ product }: ProductCardProps) => {
   const displayRating = product.averageRating && product.averageRating > 0 ? product.averageRating.toFixed(1) : 'New';
 
   return (
-    <div className="bg-card rounded-lg shadow-lg overflow-hidden flex flex-col transition-all duration-300 hover-lift">
+    <div className="bg-card rounded-lg shadow-lg overflow-hidden flex flex-col transition-all duration-300 hover-lift group">
       <Link href={`/products/${product.slug}`} className="block">
         <div className="relative w-full aspect-square">
           <Image

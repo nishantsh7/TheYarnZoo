@@ -33,6 +33,7 @@ export default function CartContents() {
             <Image src={item.image} alt={item.name} fill className="object-cover" data-ai-hint="toy product" />
           </div>
           <div className="flex-grow">
+            {/* The product slug is not available in the cart item, so linking to /products is a safe fallback */}
             <Link href={`/products`} passHref> 
               <span className="text-lg font-semibold text-foreground hover:text-accent cursor-pointer">{item.name}</span>
             </Link>

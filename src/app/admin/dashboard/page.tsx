@@ -1,23 +1,17 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, ShoppingCart, Users, TrendingUp, AlertCircle } from "lucide-react";
+import { Package, ShoppingCart, Users, TrendingUp, AlertCircle, ListOrdered } from "lucide-react";
 import { getDashboardStatsAction } from '@/actions/dashboardActions';
-import type { DashboardStats } from '@/types';
-
-// Mock data for recent activity, can be replaced with real data later
-async function getRecentActivity() {
-    await new Promise(resolve => setTimeout(resolve, 100)); // Simulate short delay
-    return [
-        { id: 1, type: 'New Order', description: 'Order #TYZ789123 placed for ₹4599.00', time: '2 hours ago' },
-        { id: 2, type: 'New Customer', description: 'Alice B. registered.', time: '5 hours ago' },
-        { id: 3, type: 'Product Review', description: 'Review received for Yarny Elephant', time: '1 day ago' },
-        { id: 4, type: 'Low Stock', description: 'Cuddle Bear stock is low (3 remaining)', time: '2 days ago', urgent: true },
-    ];
-}
+import { getAdminOrders } from '@/actions/orderActions';
+import type { DashboardStats, Order } from '@/types';
+import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default async function AdminDashboardPage() {
   const stats: DashboardStats = await getDashboardStatsAction();
-  const recentActivity = await getRecentActivity(); // Keeping mock for now
+  const allOrders = await getAdminOrders();
+  const recentOrders = allOrders.slice(0, 5);
 
   const statCards = [
     { title: "Total Revenue", value: `₹${(stats.totalRevenue).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: TrendingUp, color: "text-green-500" },
@@ -25,6 +19,14 @@ export default async function AdminDashboardPage() {
     { title: "Total Products", value: stats.totalProducts.toString(), icon: Package, color: "text-purple-500" },
     { title: "Total Customers", value: stats.totalCustomers.toString(), icon: Users, color: "text-orange-500" },
   ];
+  
+  const statusColors: Record<Order['orderStatus'], string> = {
+    pending: "bg-yellow-100 text-yellow-800 border-yellow-300",
+    processing: "bg-blue-100 text-blue-800 border-blue-300",
+    shipped: "bg-indigo-100 text-indigo-800 border-indigo-300",
+    delivered: "bg-green-100 text-green-800 border-green-300",
+    cancelled: "bg-red-100 text-red-800 border-red-300",
+  };
 
   return (
     <div className="space-y-8">
@@ -44,23 +46,36 @@ export default async function AdminDashboardPage() {
         ))}
       </div>
       
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="shadow-lg">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="shadow-lg lg:col-span-2">
             <CardHeader>
-                <CardTitle className="text-xl font-semibold text-gray-700">Recent Activity</CardTitle>
+                <CardTitle className="text-xl font-semibold text-gray-700 flex items-center"><ListOrdered className="mr-2 h-5 w-5 text-accent"/>Recent Orders</CardTitle>
             </CardHeader>
             <CardContent>
-                <ul className="space-y-4">
-                    {recentActivity.map(activity => (
-                        <li key={activity.id} className={`flex items-start space-x-3 p-3 rounded-md ${activity.urgent ? 'bg-destructive/10 border-l-4 border-destructive' : 'bg-secondary/30'}`}>
-                            {activity.urgent ? <AlertCircle className="h-5 w-5 text-destructive mt-1" /> : <TrendingUp className="h-5 w-5 text-accent mt-1" />}
-                            <div>
-                                <p className="text-sm font-medium text-foreground">{activity.type}: <span className="font-normal">{activity.description}</span></p>
-                                <p className="text-xs text-muted-foreground">{activity.time}</p>
-                            </div>
-                        </li>
-                    ))}
-                </ul>
+                {recentOrders.length > 0 ? (
+                    <ul className="space-y-4">
+                        {recentOrders.map(order => (
+                            <li key={order.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 rounded-md bg-secondary/30">
+                                <div>
+                                    <Link href={`/admin/orders/${order._id}`} className="font-medium text-foreground hover:text-accent">
+                                        Order #{order.id}
+                                    </Link>
+                                    <p className="text-sm text-muted-foreground">{order.shippingAddress.name} - ₹{order.totalAmount.toFixed(2)}</p>
+                                </div>
+                                <Badge variant="outline" className={statusColors[order.orderStatus]}>
+                                  {order.orderStatus}
+                                </Badge>
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                     <p className="text-muted-foreground text-center py-4">No recent orders.</p>
+                )}
+                 {allOrders.length > 5 && (
+                    <Button asChild variant="link" className="mt-4 px-0 text-accent">
+                        <Link href="/admin/orders">View All Orders</Link>
+                    </Button>
+                 )}
             </CardContent>
         </Card>
 
